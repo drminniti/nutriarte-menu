@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Build output
+dist/
+
+# Environment - NEVER commit secrets
+.env.local
+.env.*.local
+
+# Firebase
+.firebase/
+
+# System
+.DS_Store
+*.log
