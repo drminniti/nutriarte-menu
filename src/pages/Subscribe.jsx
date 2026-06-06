@@ -1,23 +1,53 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle, ChevronRight, Leaf, Shield } from 'lucide-react'
+import { CheckCircle, Loader2, Shield, Leaf } from 'lucide-react'
 import { PLANS } from '../lib/mockData'
+import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 
 export default function Subscribe() {
+  const { user } = useAuth()
+  const [loading, setLoading] = useState(false)
   const plan = PLANS[0]
 
-  const handleMercadoPago = () => {
-    // In production: call Cloud Function createPaymentPreference
-    toast('Conectando con Mercado Pago…', { icon: '💳' })
-  }
+  const handleMercadoPago = async () => {
+    if (!user) {
+      toast.error('Debés iniciar sesión primero.')
+      return
+    }
 
-  const handlePayPal = () => {
-    toast('Conectando con PayPal…', { icon: '🌐' })
+    setLoading(true)
+    const toastId = toast.loading('Preparando tu pago…')
+
+    try {
+      const res = await fetch('/api/create-preference', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ uid: user.uid, email: user.email }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.init_point) {
+        throw new Error(data.error || 'Error al crear preferencia')
+      }
+
+      toast.success('Redirigiendo a Mercado Pago…', { id: toastId })
+
+      // Redirect to Mercado Pago checkout
+      window.location.href = data.init_point
+
+    } catch (err) {
+      console.error('[Subscribe] MP error:', err)
+      toast.error(err.message || 'Error conectando con Mercado Pago.', { id: toastId })
+      setLoading(false)
+    }
   }
 
   return (
     <div className="min-h-dvh flex items-center justify-center bg-surface px-4 py-12">
       <div className="w-full max-w-sm animate-slide-up">
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-3xl bg-brand-500 flex items-center justify-center shadow-card mx-auto mb-3">
@@ -48,22 +78,22 @@ export default function Subscribe() {
           </div>
         </div>
 
-        {/* Payment options */}
+        {/* Payment button */}
         <div className="space-y-3">
           <button
             id="pay-mercadopago-btn"
             onClick={handleMercadoPago}
-            className="btn btn-primary w-full btn-lg"
+            disabled={loading}
+            className="btn btn-primary w-full btn-lg disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            💳 Pagar con Mercado Pago
-          </button>
-
-          <button
-            id="pay-paypal-btn"
-            onClick={handlePayPal}
-            className="btn btn-outline w-full"
-          >
-            🌐 Pagar con PayPal
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Conectando…
+              </span>
+            ) : (
+              '💳 Pagar con Mercado Pago'
+            )}
           </button>
         </div>
 
