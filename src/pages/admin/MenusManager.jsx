@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, orderBy, query } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import AdminLayout from '../../components/layout/AdminLayout'
 import { Plus, Pencil, Archive, Eye, Trash2, ChevronDown, ChevronUp, BookOpen, CalendarClock, ShoppingCart } from 'lucide-react'
@@ -287,11 +287,34 @@ function MenuEditor({ initial, onSave, onCancel }) {
       setTab('meta')
       return
     }
+    if (status === 'scheduled' && !form.release_date) {
+      toast.error('Selecioná una fecha de publicación para programar')
+      setTab('meta')
+      return
+    }
     setSaving(true)
     try {
+      // Si publicamos: archivar los que ya están publicados
+      if (status === 'published') {
+        const publishedSnap = await getDocs(
+          query(collection(db, 'menus'))
+        )
+        const batch = writeBatch(db)
+        publishedSnap.docs
+          .filter(d => d.data().status === 'published' && d.id !== form.week_id.trim())
+          .forEach(d => batch.update(d.ref, { status: 'archived', updated_at: new Date() }))
+        await batch.commit()
+      }
+
       const data = serializeMenu(form, status)
       await setDoc(doc(db, 'menus', data.week_id), data)
-      toast.success(status === 'published' ? '✅ Menú publicado' : '💾 Borrador guardado')
+
+      const msg = {
+        published:  '✅ Menú publicado',
+        draft:      '💾 Borrador guardado',
+        scheduled:  `📅 Menú programado para ${new Date(form.release_date).toLocaleString('es-AR')}`,
+      }[status] || 'Guardado'
+      toast.success(msg)
       onSave()
     } catch (err) {
       console.error(err)
@@ -461,6 +484,15 @@ function MenuEditor({ initial, onSave, onCancel }) {
           className="btn btn-outline flex-1"
         >
           💾 Guardar borrador
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSave('scheduled')}
+          disabled={saving}
+          className="btn btn-ghost flex-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+        >
+          <CalendarClock className="w-4 h-4" />
+          Programar
         </button>
         <button
           type="button"
