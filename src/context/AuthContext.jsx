@@ -61,12 +61,24 @@ export function AuthProvider({ children }) {
 
   const logout = () => signOut(auth)
 
-  const isAdmin    = userDoc?.role === 'admin'
-  const isActive   = userDoc?.subscription_status === 'active'
-  const isPastDue  = userDoc?.subscription_status === 'past_due'
+  const isAdmin = userDoc?.isAdmin === true || userDoc?.role === 'admin'
+
+  // Suscripción activa = status 'active' Y fecha de vencimiento en el futuro (o indefinida)
+  const _endDate = userDoc?.subscription_end_date
+  const _endMs   = _endDate?.toDate
+    ? _endDate.toDate().getTime()
+    : _endDate?.seconds
+      ? _endDate.seconds * 1000
+      : null
+  const isExpired = _endMs !== null && _endMs < Date.now()
+  const isActive  = userDoc?.subscription_status === 'active' && !isExpired
+  const isPastDue = userDoc?.subscription_status === 'past_due' || (userDoc?.subscription_status === 'active' && isExpired)
+
+  // Días restantes (para mostrar aviso de renovación)
+  const daysLeft = _endMs ? Math.ceil((_endMs - Date.now()) / (1000 * 60 * 60 * 24)) : null
 
   return (
-    <AuthContext.Provider value={{ user, userDoc, loading, logout, isAdmin, isActive, isPastDue }}>
+    <AuthContext.Provider value={{ user, userDoc, loading, logout, isAdmin, isActive, isPastDue, daysLeft }}>
       {children}
     </AuthContext.Provider>
   )
