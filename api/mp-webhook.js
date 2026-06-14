@@ -75,24 +75,25 @@ export default async function handler(req, res) {
     if (status === 'approved') {
       const endDate = new Date()
       endDate.setMonth(endDate.getMonth() + 1)
-      await userRef.update({
+      // set+merge crea el doc si no existe (nuevo usuario que paga antes de cargar el app)
+      await userRef.set({
         subscription_status:   'active',
         subscription_end_date: Timestamp.fromDate(endDate),
         payment_provider:      'mercadopago',
         last_payment_id:       String(data.id),
         updated_at:            FieldValue.serverTimestamp(),
-      })
+      }, { merge: true })
       console.log(`✅ Subscription activated for user ${uid}`)
     } else if (status === 'rejected') {
-      await userRef.update({
+      await userRef.set({
         subscription_status: 'past_due',
         updated_at:          FieldValue.serverTimestamp(),
-      })
+      }, { merge: true })
     } else if (status === 'cancelled') {
-      await userRef.update({
+      await userRef.set({
         subscription_status: 'canceled',
         updated_at:          FieldValue.serverTimestamp(),
-      })
+      }, { merge: true })
     }
 
     return res.status(200).send('OK')
