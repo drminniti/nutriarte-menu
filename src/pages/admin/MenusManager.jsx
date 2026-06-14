@@ -124,16 +124,20 @@ const deserializeMenu = (data) => ({
   },
 })
 
-// ─── Day Editor (collapsible) ─────────────────────────────────────────────────
+// ─── Day Editor (simplificado) ───────────────────────────────────────────────
 
 function DayEditor({ dayData, index, onChange }) {
-  const [open, setOpen] = useState(index === 0)
+  const [open,       setOpen]       = useState(index === 0)
+  const [showRecipe, setShowRecipe] = useState(false)
 
   const set = (field, value) =>
     onChange(index, { ...dayData, [field]: value })
 
+  const hasRecipe = dayData.ingredients_omni || dayData.ingredients_veggie || dayData.steps
+
   return (
     <div className="border border-brand-100 rounded-2xl overflow-hidden">
+      {/* Header — siempre visible */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -145,105 +149,78 @@ function DayEditor({ dayData, index, onChange }) {
           onChange={e => set('emoji', e.target.value)}
           onClick={e => e.stopPropagation()}
           maxLength={2}
-          className="w-10 h-10 text-xl text-center bg-brand-50 rounded-xl border-0 focus:ring-2 focus:ring-brand-300 outline-none"
+          className="w-10 h-10 text-xl text-center bg-brand-50 rounded-xl border-0 focus:ring-2 focus:ring-brand-300 outline-none flex-shrink-0"
         />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">{dayData.day}</p>
           <p className="text-sm font-semibold text-text-primary truncate">
-            {dayData.title || 'Sin título'}
+            {dayData.title || <span className="text-text-muted font-normal">Sin título</span>}
           </p>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-text-muted" /> : <ChevronDown className="w-4 h-4 text-text-muted" />}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {hasRecipe && <span className="text-xs text-brand-400 bg-brand-50 px-2 py-0.5 rounded-full">con receta</span>}
+          {open ? <ChevronUp className="w-4 h-4 text-text-muted" /> : <ChevronDown className="w-4 h-4 text-text-muted" />}
+        </div>
       </button>
 
       {open && (
-        <div className="p-4 space-y-4 border-t border-brand-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
-              <label className="label">Título del plato</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="Ej: Ensalada César con pollo grillado"
-                value={dayData.title}
-                onChange={e => set('title', e.target.value)}
-              />
+        <div className="p-4 space-y-3 border-t border-brand-100">
+          {/* ── Campos esenciales ── */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="label">Plato</label>
+              <input type="text" className="input" placeholder="Ej: Ensalada César con pollo" value={dayData.title} onChange={e => set('title', e.target.value)} />
             </div>
             <div>
-              <label className="label">Tiempo (min)</label>
-              <input
-                type="number"
-                className="input"
-                value={dayData.time_minutes}
-                onChange={e => set('time_minutes', e.target.value)}
-                min={5}
-              />
+              <label className="label">⏱ Min</label>
+              <input type="number" className="input" value={dayData.time_minutes} onChange={e => set('time_minutes', e.target.value)} min={5} />
             </div>
           </div>
 
           <div>
-            <label className="label">Descripción corta</label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Una línea descriptiva del plato..."
-              value={dayData.description}
-              onChange={e => set('description', e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">🥩 Ingredientes omnívoros (uno por línea)</label>
-              <textarea
-                className="input min-h-[100px] resize-y font-mono text-xs"
-                placeholder={"Pechuga de pollo 200g\nLechuga romana\nYogur griego"}
-                value={dayData.ingredients_omni}
-                onChange={e => set('ingredients_omni', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">🌿 Ingredientes vegetarianos (uno por línea)</label>
-              <textarea
-                className="input min-h-[100px] resize-y font-mono text-xs"
-                placeholder={"Garbanzos 150g\nLechuga romana\nYogur griego"}
-                value={dayData.ingredients_veggie}
-                onChange={e => set('ingredients_veggie', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">👨‍🍳 Pasos omnívoros (uno por línea)</label>
-              <textarea
-                className="input min-h-[100px] resize-y font-mono text-xs"
-                placeholder={"Grillá el pollo con sal y pimienta.\nPrepará el aderezo.\nArmá la ensalada."}
-                value={dayData.steps}
-                onChange={e => set('steps', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">🌿 Pasos vegetarianos (uno por línea)</label>
-              <textarea
-                className="input min-h-[100px] resize-y font-mono text-xs"
-                placeholder={"Cocí los garbanzos.\nSalteá con ajo y pimentón.\nArmá la ensalada."}
-                value={dayData.steps_veggie}
-                onChange={e => set('steps_veggie', e.target.value)}
-              />
-            </div>
+            <label className="label">Descripción</label>
+            <input type="text" className="input" placeholder="Una línea breve del plato..." value={dayData.description} onChange={e => set('description', e.target.value)} />
           </div>
 
           <div>
             <label className="label">💡 Tip nutricional</label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Dato nutricional clave para este plato..."
-              value={dayData.tip}
-              onChange={e => set('tip', e.target.value)}
-            />
+            <input type="text" className="input" placeholder="Dato nutricional clave..." value={dayData.tip} onChange={e => set('tip', e.target.value)} />
           </div>
+
+          {/* ── Receta completa (colapsable, opcional) ── */}
+          <button
+            type="button"
+            onClick={() => setShowRecipe(!showRecipe)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-surface-muted rounded-xl text-xs font-semibold text-text-muted hover:text-text-primary transition-colors"
+          >
+            <span>📖 Receta completa (ingredientes y pasos) — opcional</span>
+            {showRecipe ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {showRecipe && (
+            <div className="space-y-3 p-3 bg-surface-muted rounded-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="label text-xs">🥩 Ingredientes omnívoros (uno por línea)</label>
+                  <textarea className="input min-h-[90px] resize-y font-mono text-xs" placeholder={"Pechuga 200g\nLechuga\nYogur griego"} value={dayData.ingredients_omni} onChange={e => set('ingredients_omni', e.target.value)} />
+                </div>
+                <div>
+                  <label className="label text-xs">🌿 Ingredientes vegetarianos (uno por línea)</label>
+                  <textarea className="input min-h-[90px] resize-y font-mono text-xs" placeholder={"Garbanzos 150g\nLechuga\nYogur griego"} value={dayData.ingredients_veggie} onChange={e => set('ingredients_veggie', e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="label text-xs">👨‍🍳 Pasos omnívoros (uno por línea)</label>
+                  <textarea className="input min-h-[90px] resize-y font-mono text-xs" placeholder={"Grillá el pollo.\nPreparar aderezo.\nArmar."} value={dayData.steps} onChange={e => set('steps', e.target.value)} />
+                </div>
+                <div>
+                  <label className="label text-xs">🌿 Pasos vegetarianos (uno por línea)</label>
+                  <textarea className="input min-h-[90px] resize-y font-mono text-xs" placeholder={"Cocí garbanzos.\nSalteá.\nArmar."} value={dayData.steps_veggie} onChange={e => set('steps_veggie', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -253,9 +230,49 @@ function DayEditor({ dayData, index, onChange }) {
 // ─── Menu Editor Form ──────────────────────────────────────────────────────────
 
 function MenuEditor({ initial, onSave, onCancel }) {
-  const [form, setForm]     = useState(initial || emptyMenu())
-  const [saving, setSaving] = useState(false)
-  const [tab, setTab]       = useState('meta') // meta | sections | days | shopping
+  const [form,        setForm]        = useState(initial || emptyMenu())
+  const [saving,      setSaving]      = useState(false)
+  const [tab,         setTab]         = useState('meta') // meta | sections | days | shopping
+  const [copyingList, setCopyingList] = useState(false)
+
+  // Copia la lista de compras del menú más reciente (archivado o publicado)
+  const importPreviousShoppingList = async () => {
+    setCopyingList(true)
+    try {
+      const snap = await getDocs(collection(db, 'menus'))
+      const others = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(m => m.id !== form.week_id && ['published', 'archived'].includes(m.status) && m.shopping_list)
+        .sort((a, b) => b.week_id.localeCompare(a.week_id))
+
+      if (others.length === 0) {
+        toast('No hay menús anteriores con lista de compras')
+        return
+      }
+
+      const src = others[0].shopping_list
+      setForm(f => ({
+        ...f,
+        shopping_list: {
+          omnivora: {
+            verduleria: toStr(src.omnivora?.verduleria),
+            carniceria: toStr(src.omnivora?.carniceria),
+            almacen:    toStr(src.omnivora?.almacen),
+          },
+          vegetariana: {
+            verduleria: toStr(src.vegetariana?.verduleria),
+            carniceria: toStr(src.vegetariana?.carniceria),
+            almacen:    toStr(src.vegetariana?.almacen),
+          },
+        },
+      }))
+      toast.success(`📋 Lista importada de ${others[0].week_id} — editala según esta semana`)
+    } catch (err) {
+      toast.error('Error: ' + err.message)
+    } finally {
+      setCopyingList(false)
+    }
+  }
 
   const setSection  = (field, value) =>
     setForm(f => ({ ...f, sections: { ...f.sections, [field]: value } }))
@@ -424,7 +441,17 @@ function MenuEditor({ initial, onSave, onCancel }) {
       {/* TAB: Shopping List */}
       {tab === 'shopping' && (
         <div className="space-y-4">
-          <p className="text-xs text-text-muted px-1">Un producto por línea en cada categoría.</p>
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs text-text-muted">Un producto por línea en cada categoría.</p>
+            <button
+              type="button"
+              onClick={importPreviousShoppingList}
+              disabled={copyingList}
+              className="btn btn-ghost btn-sm text-xs text-brand-600 hover:bg-brand-50"
+            >
+              {copyingList ? 'Importando…' : '📋 Copiar lista del menú anterior'}
+            </button>
+          </div>
 
           {/* Omnívora */}
           <div className="card space-y-3">
