@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { ShoppingCart, Check, Leaf, RefreshCw, Loader2 } from 'lucide-react'
 
@@ -32,13 +32,15 @@ export default function ShoppingList() {
       try {
         const q    = query(
           collection(db, 'menus'),
-          where('status', '==', 'published'),
-          orderBy('week_id', 'desc'),
-          limit(1)
+          where('status', '==', 'published')
         )
         const snap = await getDocs(q)
         if (!snap.empty) {
-          setMenu({ id: snap.docs[0].id, ...snap.docs[0].data() })
+          // Ordenar por week_id en memoria para evitar índice compuesto
+          const sorted = snap.docs.sort((a, b) =>
+            b.data().week_id.localeCompare(a.data().week_id)
+          )
+          setMenu({ id: sorted[0].id, ...sorted[0].data() })
         }
       } catch (err) {
         console.error('Error fetching menu:', err)
