@@ -542,9 +542,17 @@ export default function MenusManager() {
   }
 
   const handlePublish = async (weekId) => {
+    if (!confirm(`¿Publicar el menú ${weekId}? El menú actualmente publicado se archivará automáticamente.`)) return
     try {
-      await updateDoc(doc(db, 'menus', weekId), { status: 'published', updated_at: new Date() })
-      toast.success('✅ Menú publicado')
+      // Archivar todos los menus actualmente publicados
+      const allSnap = await getDocs(collection(db, 'menus'))
+      const batch   = writeBatch(db)
+      allSnap.docs
+        .filter(d => d.data().status === 'published' && d.id !== weekId)
+        .forEach(d => batch.update(d.ref, { status: 'archived', updated_at: new Date() }))
+      batch.update(doc(db, 'menus', weekId), { status: 'published', updated_at: new Date() })
+      await batch.commit()
+      toast.success('✅ Menú publicado (el anterior fue archivado)')
       loadMenus()
     } catch (err) {
       toast.error('Error: ' + err.message)
@@ -660,9 +668,9 @@ export default function MenusManager() {
                                 <button
                                   onClick={() => handlePublish(m.id)}
                                   className="p-1.5 text-text-muted hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors text-xs font-medium px-2"
-                                  title="Publicar"
+                                  title={m.status === 'archived' ? 'Reactivar' : 'Publicar'}
                                 >
-                                  Publicar
+                                  {m.status === 'archived' ? '🔄 Reactivar' : 'Publicar'}
                                 </button>
                               )}
                               <button
