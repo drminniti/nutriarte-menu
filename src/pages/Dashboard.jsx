@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 import DayCard from '../components/menu/DayCard'
-import { Leaf, Star, Zap, Info, Loader2 } from 'lucide-react'
+import { Leaf, Star, Zap, Info, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 
 function getWeekLabel(weekId) {
   if (!weekId) return ''
@@ -12,7 +13,8 @@ function getWeekLabel(weekId) {
 }
 
 export default function Dashboard() {
-  const { userDoc } = useAuth()
+  const { userDoc, daysLeft, isPastDue, isActive } = useAuth()
+  const navigate = useNavigate()
   const [menu,    setMenu]    = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -52,12 +54,44 @@ export default function Dashboard() {
   return (
     <div className="page-wrapper animate-fade-in">
       {/* Greeting header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <p className="text-text-muted text-sm font-medium">{greeting()}</p>
         <h1 className="font-display text-2xl text-text-primary mt-0.5">
           {firstName} 👋
         </h1>
       </div>
+
+      {/* Renewal warning banner */}
+      {isActive && daysLeft !== null && daysLeft <= 7 && (
+        <button
+          onClick={() => navigate('/cuenta')}
+          className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-5 text-left hover:bg-amber-100 transition-colors"
+        >
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              Tu suscripción vence en {daysLeft} {daysLeft === 1 ? 'día' : 'días'}
+            </p>
+            <p className="text-xs text-amber-700">Tap para renovar y no perder el acceso</p>
+          </div>
+          <RefreshCw className="w-4 h-4 text-amber-600 flex-shrink-0" />
+        </button>
+      )}
+
+      {/* Expired banner */}
+      {isPastDue && (
+        <button
+          onClick={() => navigate('/suscribirse')}
+          className="w-full flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-left hover:bg-red-100 transition-colors"
+        >
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-800">Suscripción vencida</p>
+            <p className="text-xs text-red-700">Renová ahora para volver a ver el menú</p>
+          </div>
+          <RefreshCw className="w-4 h-4 text-red-600 flex-shrink-0" />
+        </button>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
