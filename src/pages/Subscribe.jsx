@@ -17,10 +17,11 @@ export default function Subscribe() {
     }
 
     setLoading(true)
-    const toastId = toast.loading('Preparando tu pago…')
+    const toastId = toast.loading('Preparando suscripción automática…')
 
     try {
-      const res = await fetch('/api/create-preference', {
+      // Intenta suscripción automática (PreApproval)
+      const res = await fetch('/api/create-subscription', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ uid: user.uid, email: user.email }),
@@ -29,16 +30,14 @@ export default function Subscribe() {
       const data = await res.json()
 
       if (!res.ok || !data.init_point) {
-        throw new Error(data.error || 'Error al crear preferencia')
+        throw new Error(data.error || 'Error al crear suscripción')
       }
 
       toast.success('Redirigiendo a Mercado Pago…', { id: toastId })
-
-      // Redirect to Mercado Pago checkout
       window.location.href = data.init_point
 
     } catch (err) {
-      console.error('[Subscribe] MP error:', err)
+      console.error('[Subscribe] error:', err)
       toast.error(err.message || 'Error conectando con Mercado Pago.', { id: toastId })
       setLoading(false)
     }
