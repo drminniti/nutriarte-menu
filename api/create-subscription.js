@@ -1,16 +1,28 @@
 /**
  * POST /api/create-subscription
  * Body: { uid, email }
- * Returns: { subscription_id, init_point }
+ * Returns: { init_point }
  *
- * Crea una suscripción automática mensual en Mercado Pago (PreApproval).
- * El usuario aprueba el cobro automático una sola vez y MP se encarga de cobrar cada mes.
- *
- * Requiere en Vercel:
- *   MP_ACCESS_TOKEN = "APP_USR-..."
- *   MP_PLAN_ID      = el ID del plan creado con scripts/create-mp-plan.mjs
- *   APP_URL         = "https://nutriarte-menu.vercel.app"
+ * En producción, MP requiere que el usuario ingrese su tarjeta vía checkout.
+ * Usamos el init_point del plan directamente (sin crear un preapproval previo).
+ * El UID se guarda en Firestore antes de redirigir para que el webhook
+ * pueda resolver el usuario por email.
  */
+import { initializeApp, getApps, cert } from 'firebase-admin/app'
+import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
+      projectId:   process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  })
+}
+
+const db = getFirestore()
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -26,62 +38,39 @@ export default async function handler(req, res) {
   const PLAN_ID      = process.env.MP_PLAN_ID
   const APP_URL      = process.env.APP_URL || 'https://nutriarte-menu.vercel.app'
 
-  if (!ACCESS_TOKEN) {
-    return res.status(500).json({ error: 'MP_ACCESS_TOKEN no configurado' })
+  if (!ACCESS_TOKEN || !PLAN_ID) {
+    return res.status(500).json({ error: 'MP_ACCESS_TOKEN o MP_PLAN_ID no configurados' })
   }
 
   try {
-    let body
+    // 1. Obtener el init_point del plan
+    const planRes = await fetch(
+      `https://api.mercadopago.com/preapproval_plan/${PLAN_ID}`,
+      { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
+    )
+    const plan = await planRes.json()
 
-    if (PLAN_ID) {
-      // ─── Con Plan (recomendado para producción) ───────────────────────
-      // El plan define monto y frecuencia. La suscripción queda atada al plan.
-      body = {
-        preapproval_plan_id: PLAN_ID,
-        payer_email:         email,
-        external_reference:  uid,
-        back_url:            `${APP_URL}/dashboard?suscripcion=ok`,
-      }
-    } else {
-      // ─── Sin Plan (fallback — define los parámetros inline) ───────────
-      const startDate = new Date().toISOString()
-      body = {
-        reason:             'Nutriarte – Menú Semanal Mensual',
-        payer_email:        email,
-        external_reference: uid,
-        auto_recurring: {
-          frequency:          1,
-          frequency_type:     'months',
-          transaction_amount: 4500,
-          currency_id:        'ARS',
-          start_date:         startDate,
-        },
-        back_url: `${APP_URL}/dashboard?suscripcion=ok`,
-        status:   'pending',
-      }
+    if (!planRes.ok || !plan.init_point) {
+      console.error('[create-subscription] Plan error:', plan)
+      return res.status(500).json({ error: 'No se pudo obtener el plan de suscripción' })
     }
 
-    const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${ACCESS_TOKEN}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+    // 2. Asegurar que el usuario existe en Firestore con su email
+    //    (el webhook lo resuelve por email si no hay external_reference)
+    await db.collection('users').doc(uid).set({
+      email,
+      updated_at: FieldValue.serverTimestamp(),
+    }, { merge: true })
 
-    const data = await mpRes.json()
+    // 3. El init_point redirige a MP checkout donde el usuario autoriza el débito automático
+    //    back_url: MP redirige aquí después de autorizar
+    const initPoint = `${plan.init_point}&back_url=${encodeURIComponent(`${APP_URL}/dashboard?suscripcion=ok`)}`
 
-    if (!mpRes.ok) {
-      console.error('[create-subscription] MP error:', data)
-      return res.status(500).json({ error: data.message || 'Error al crear suscripción en Mercado Pago' })
-    }
-
-    console.log(`[create-subscription] Created subscription ${data.id} for user ${uid}`)
+    console.log(`[create-subscription] Redirecting user ${uid} (${email}) to plan checkout`)
 
     return res.status(200).json({
-      subscription_id: data.id,
-      init_point:      data.init_point,
+      subscription_id: null,   // MP lo crea cuando el usuario autoriza
+      init_point:      plan.init_point,
     })
   } catch (err) {
     console.error('[create-subscription] Error:', err)

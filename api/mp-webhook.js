@@ -21,6 +21,14 @@ const mpGet = (path) =>
     headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` },
   }).then(r => r.json())
 
+// Resolve UID from Firestore by email (fallback when external_reference is missing)
+const resolveUidByEmail = async (email) => {
+  if (!email) return null
+  const snap = await db.collection('users').where('email', '==', email).limit(1).get()
+  if (snap.empty) return null
+  return snap.docs[0].id
+}
+
 const activateSubscription = async (uid, extraFields = {}) => {
   const endDate = new Date()
   endDate.setMonth(endDate.getMonth() + 1)
@@ -69,11 +77,18 @@ export default async function handler(req, res) {
     // ─── 2. Subscription status change ───────────────────────────────────
     if (type === 'subscription_preapproval') {
       const subscription = await mpGet(`/preapproval/${data.id}`)
-      const uid          = subscription.external_reference
       const status       = subscription.status // authorized | paused | cancelled | pending
 
+      // Resolve UID: external_reference preferred, fallback to email lookup
+      let uid = subscription.external_reference
       if (!uid) {
-        console.error('[mp-webhook] No external_reference in subscription', data.id)
+        const payerEmail = subscription.payer_email || subscription.payer?.email
+        uid = await resolveUidByEmail(payerEmail)
+        console.log(`[mp-webhook] Resolved uid by email (${payerEmail}):`, uid)
+      }
+
+      if (!uid) {
+        console.error('[mp-webhook] No uid resolved for subscription', data.id)
         return res.status(200).send('OK – no uid')
       }
 
